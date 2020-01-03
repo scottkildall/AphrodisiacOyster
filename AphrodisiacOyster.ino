@@ -1,49 +1,37 @@
 /*
-  Blink
+  Aphrodisiac Oyster
+  A project by Stephanie Rothenberg in consultation with Scott Kildall
 
-  Turns an LED on for one second, then off for one second, repeatedly.
-
-  Most Arduinos have an on-board LED you can control. On the UNO, MEGA and ZERO
-  it is attached to digital pin 13, on MKR1000 on pin 6. LED_BUILTIN is set to
-  the correct LED pin independent of which board is used.
-  If you want to know what pin the on-board LED is connected to on your Arduino
-  model, check the Technical Specs of your board at:
-  https://www.arduino.cc/en/Main/Products
-
-  modified 8 May 2014
-  by Scott Fitzgerald
-  modified 2 Sep 2016
-  by Arturo Guadalupi
-  modified 8 Sep 2016
-  by Colby Newman
-
-  This example code is in the public domain.
-
-  http://www.arduino.cc/en/Tutorial/Blink
+  Motor controller that uses two momentary switches to turn two motors
+  on and off through a Darlington transitor (ULN2803). Each channel of the
+  transistor is also connected in parallel to an LED.
 */
 
-// the setup function runs once when you press reset or power the board
+//-- pin numbers for the two pumps + LEDs that run in parallel
+#define PERISTALTIC_PUMP (4)
+#define SELF_PRIMING_PUMP (16)
+      
 void setup() {
-  // initialize digital pin LED_BUILTIN as an output.
-  pinMode(4, OUTPUT);
-  pinMode(16, OUTPUT);
+  //-- set our two pins to output
+  pinMode(PERISTALTIC_PUMP, OUTPUT);
+  pinMode(SELF_PRIMING_PUMP, OUTPUT);
 
+  //-- Blink LEDs 3 times upon startup
+  //-- we might want to change this later to have a LED indicating power only
   for( int i = 0; i < 3; i++ ) {
-    digitalWrite(4, HIGH);   // turn the LED on (HIGH is the voltage level)
+    digitalWrite(PERISTALTIC_PUMP, HIGH);   // turn the LED on (HIGH is the voltage level)
     delay(250);                       // wait for a second
-    digitalWrite(4, LOW);    // turn the LED off by making the voltage LOW
+    digitalWrite(PERISTALTIC_PUMP, LOW);    // turn the LED off by making the voltage LOW
     delay(250);   
   }
 }
 
-// the loop function runs over and over again forever
+//-- track button input and activate the appropriate LED/motor
 void loop() {
-  digitalWrite(4, HIGH);   // turn the LED on (HIGH is the voltage level)
-  digitalWrite(16, LOW);
-  delay(1000);                       // wait for a second
-  digitalWrite(4, LOW);    // turn the LED off by making the voltage LOW
-  digitalWrite(16, HIGH);
-  delay(1000);     // wait for a second
-
-  
+  digitalWrite(PERISTALTIC_PUMP, HIGH);  
+  digitalWrite(SELF_PRIMING_PUMP, LOW);
+  delay(1000);                       
+  digitalWrite(PERISTALTIC_PUMP, LOW);   
+  digitalWrite(SELF_PRIMING_PUMP, HIGH);
+  delay(1000);     
 }
