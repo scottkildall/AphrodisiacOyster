@@ -12,7 +12,7 @@
 #define SELF_PRIMING_PUMP (16)
 
 #define PERISTALTIC_BUTTON (5)
-#define SELF_PRIMING_BUTTON (10)
+#define SELF_PRIMING_BUTTON (18)
       
 void setup() {
   Serial.begin(115200);
@@ -38,15 +38,27 @@ void setup() {
 //-- track button input and activate the appropriate LED/motor
 void loop() {
   checkPeristalticPump();
+  checkSelfPrimingPump();
 }
 
 //-- check to see if the peristaltic button is being pressed and then turn on that pump
 void checkPeristalticPump() {
-  // Check for peristantlic pump on/off
+  // Check for peristanlic pump on/off
   // (code will be more precise, later — add debounce)
-  boolean persistalticPumpOn = digitalRead(PERISTALTIC_BUTTON);
-  if( persistalticPumpOn )
+  boolean pumpOn = digitalRead(PERISTALTIC_BUTTON);
+  if( pumpOn )
     digitalWrite(PERISTALTIC_PUMP, HIGH); 
   else  
     digitalWrite(PERISTALTIC_PUMP, LOW);  
+}
+
+//-- check to see if the peristaltic button is being pressed and then turn on that pump
+void checkSelfPrimingPump() {
+  // Check for self-priming pump on/off
+  // (code will be more precise, later — add debounce)
+  boolean pumpOn = digitalRead(SELF_PRIMING_BUTTON);
+  if( pumpOn )
+    digitalWrite(SELF_PRIMING_PUMP, HIGH); 
+  else  
+    digitalWrite(SELF_PRIMING_PUMP, LOW);  
 }
