@@ -9,13 +9,15 @@
 
 // Leave uncommented if we are using the Circuit Playground chip, otherwise comment
 // out the #define below
-#define CIRCUIT_PLAYGROUND
+//#define CIRCUIT_PLAYGROUND
 
 #ifdef CIRCUIT_PLAYGROUND
   #include <Adafruit_CircuitPlayground.h>
 #endif
 
-//-- pin numbers for the two pumps + LEDs that run in parallel
+#include "MSTimer.h"
+
+//========== PIN NUMBERS for the two pumps + LEDs that run in parallel ============
 #define PERISTALTIC_PUMP (6)
 #define SELF_PRIMING_PUMP (12)
 #define AIR_PUMP (3)
@@ -24,7 +26,47 @@
 #define SELF_PRIMING_BUTTON (9)
 #define AIR_BUTTON (2)
 
-// global var for brightness for Neopixels
+//========== TIMERS for the Interaction ============
+// Timer Variables
+MSTimer standbyTimer;
+MSTimer chipPattern1Timer;
+MSTimer chipPattern2Timer;
+MSTimer waterPumpOnTimer;
+MSTimer airPumpOnTimer;
+MSTimer peristalticPumpOnTimer;
+
+// how long for each timer
+#define STANDBY_TIMER_MS (60 * 1000)
+#define CHIPPATTERN1_TIMER_MS (5 * 1000)
+#define CHIPPATTERN2_TIMER_MS (5 * 1000)
+#define WATERPUMPON_TIMER_MS (10 * 1000)
+#define AIRPUMPON_TIMER_MS (10 * 1000)
+#define PERISTALTICPUMPON_TIMER_MS (5 * 1000)
+
+//========== STATES for the Interaction ============
+int state;      // this global variable for interaction state
+
+// constants for each state (more readable than #define)
+const int kStateStandby = 0;
+const int kStateChipPattern1 = 1;     // dispense
+const int kStateChipPattern2 = 2;     // auto-cycle
+const int kStateWaterPumpOn = 3;
+const int kStatePeristalticPumpOn = 4;
+
+//========== STATES for Light Patterns ============
+int lightPatternNum;      // this global variable for interaction state
+
+// constants for each light pattern 
+const int kLightPatternStandby = 1000;
+const int kLightPatternButtonPressed = 1001;
+const int kLightPatternAutoCycle = 1002;
+const int kLightPatternDispense = 1003;
+
+
+// global variables for color and brightness for Neopixels
+int r = 255;
+int g = 255;
+int b = 255;
 int brightness = 128;
 int brightDir = 1;
 
@@ -69,17 +111,65 @@ void setup() {
       CircuitPlayground.setPixelColor(i, 0,0,255);
     }
   #endif
+
+  setupTimers();
+
+  // set initial state to standby mode
+  setState(kStateStandby);
 }
 
 //-- track button input and activate the appropriate LED/motor
 void loop() {
+
+  //-- Interactive mode for all buttons (for testing)
   checkPeristalticPump();
   checkSelfPrimingPump();
   checkAirPump();
 
-  // add later for pulsating effect
-  adjustBrightness();
-  delay(20);
+  // check dispense button to see if it was pressed
+  // (code would go here)
+  
+  // check timers to see if the states have changed
+  // (code would go here)
+  
+  // update light patterns based on the light pattern number
+  updateLightPattern();
+}
+
+//-- initializes all the timers (in milliseconds) using the #define variables
+void setupTimers() {
+  standbyTimer.setTimer(STANDBY_TIMER_MS);
+  chipPattern1Timer.setTimer(CHIPPATTERN1_TIMER_MS);
+  chipPattern2Timer.setTimer(CHIPPATTERN2_TIMER_MS);
+  waterPumpOnTimer.setTimer(WATERPUMPON_TIMER_MS);
+  airPumpOnTimer.setTimer(AIRPUMPON_TIMER_MS);
+  peristalticPumpOnTimer.setTimer(PERISTALTICPUMPON_TIMER_MS);
+}
+
+//-- change the state of the machine, use if instead of switch for readability
+//-- we will activate different light patterns, depending on the state
+//-- we will turn pumps on/off, depending on the state
+void setState(const int newState) {
+  if( newState == kStateStandby ) {
+     standbyTimer.start();
+     lightPatternNum = kLightPatternStandby;
+  }
+  else if( newState == kStateChipPattern1 ) {
+     chipPattern1Timer.start();
+     lightPatternNum = kLightPatternAutoCycle;
+  }
+  else if( newState == kStateChipPattern2 ) {
+     chipPattern2Timer.start();
+     lightPatternNum = kLightPatternButtonPressed;
+  }
+  else if( newState == kStateWaterPumpOn ) {
+     waterPumpOnTimer.start();
+     //-- keep same light pattern as the chip cycle
+  }
+  else if( newState == kStatePeristalticPumpOn ) {
+     peristalticPumpOnTimer.start();
+     lightPatternNum = kLightPatternDispense;
+  }
 }
 
 //-- check to see if the peristaltic button is being pressed and then turn on that pump
@@ -115,9 +205,29 @@ void checkAirPump() {
     digitalWrite(AIR_PUMP, LOW);  
 }
 
+//-- looks at the light pattern number and will update the Neopixels on the Circuit Playground board
+void updateLightPattern() {
+  if( lightPatternNum == kLightPatternStandby )
+    adjustStandbyLightPattern();
+ 
+  // global change using brightness and the r,g, b global variables
+  // all NeoPixels will do the same exact thing
+  #ifdef CIRCUIT_PLAYGROUND
+    CircuitPlayground.setBrightness(brightness);
+      for( int i = 0; i < 10; i++ ) {
+      CircuitPlayground.setPixelColor(i, r, g, b);
+    }
+  #endif
+}
 
-void adjustBrightness() {
+// pulsating blue pattern
+void adjustStandbyLightPattern() {
+  r = 0;
+  g = 0;
+  b = 255;
+  
   brightness = brightness + brightDir;
+
   if( brightness < 128 ) {
     brightness = 128;
     brightDir = 1;    // start fading up
@@ -127,10 +237,5 @@ void adjustBrightness() {
     brightDir = -1;   // start fading down
   } 
 
-  #ifdef CIRCUIT_PLAYGROUND
-    CircuitPlayground.setBrightness(brightness);
-      for( int i = 0; i < 10; i++ ) {
-      CircuitPlayground.setPixelColor(i, 0,0,255);
-    }
-  #endif
+  delay(20);
 }
