@@ -7,7 +7,13 @@
   transistor is also connected in parallel to an LED.
 */
 
-#include <Adafruit_CircuitPlayground.h>
+// Leave uncommented if we are using the Circuit Playground chip, otherwise comment
+// out the #define below
+#define CIRCUIT_PLAYGROUND
+
+#ifdef CIRCUIT_PLAYGROUND
+  #include <Adafruit_CircuitPlayground.h>
+#endif
 
 //-- pin numbers for the two pumps + LEDs that run in parallel
 #define PERISTALTIC_PUMP (6)
@@ -26,7 +32,9 @@ void setup() {
   Serial.begin(115200);
   Serial.println("Starting Aphrodisiac Oyster");
 
-  CircuitPlayground.begin();
+  #ifdef CIRCUIT_PLAYGROUND
+    CircuitPlayground.begin();
+  #endif 
    
   //-- set our two pins to output
   pinMode(PERISTALTIC_PUMP, OUTPUT);
@@ -47,18 +55,20 @@ void setup() {
     delay(100);   
   }*/
 
-  for( int i = 0; i < 5; i++ ) {
+  #ifdef CIRCUIT_PLAYGROUND
+    for( int i = 0; i < 5; i++ ) {
+      CircuitPlayground.redLED(HIGH);
+      delay(100);
+      CircuitPlayground.redLED(LOW);
+      delay(100);   
+    }
     CircuitPlayground.redLED(HIGH);
-    delay(100);
-    CircuitPlayground.redLED(LOW);
-    delay(100);   
-  }
-  CircuitPlayground.redLED(HIGH);
 
-  // 10 built-in NeoPixels, set all to blue
-  for( int i = 0; i < 10; i++ ) {
-    CircuitPlayground.setPixelColor(i, 0,0,255);
-  }
+    // 10 built-in NeoPixels, set all to blue
+    for( int i = 0; i < 10; i++ ) {
+      CircuitPlayground.setPixelColor(i, 0,0,255);
+    }
+  #endif
 }
 
 //-- track button input and activate the appropriate LED/motor
@@ -117,9 +127,10 @@ void adjustBrightness() {
     brightDir = -1;   // start fading down
   } 
 
-
-  CircuitPlayground.setBrightness(brightness);
-   for( int i = 0; i < 10; i++ ) {
-    CircuitPlayground.setPixelColor(i, 0,0,255);
-  }
+  #ifdef CIRCUIT_PLAYGROUND
+    CircuitPlayground.setBrightness(brightness);
+      for( int i = 0; i < 10; i++ ) {
+      CircuitPlayground.setPixelColor(i, 0,0,255);
+    }
+  #endif
 }
