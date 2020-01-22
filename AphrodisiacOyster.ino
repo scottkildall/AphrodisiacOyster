@@ -9,7 +9,7 @@
 
 // Leave uncommented if we are using the Circuit Playground chip, otherwise comment
 // out the #define below
-//#define CIRCUIT_PLAYGROUND
+#define CIRCUIT_PLAYGROUND
 
 #ifdef CIRCUIT_PLAYGROUND
   #include <Adafruit_CircuitPlayground.h>
@@ -36,7 +36,7 @@ MSTimer airPumpOnTimer;
 MSTimer peristalticPumpOnTimer;
 
 // how long for each timer
-#define STANDBY_TIMER_MS (60 * 1000)
+#define STANDBY_TIMER_MS (10 * 1000)      // 60
 #define CHIPPATTERN1_TIMER_MS (5 * 1000)
 #define CHIPPATTERN2_TIMER_MS (5 * 1000)
 #define WATERPUMPON_TIMER_MS (10 * 1000)
@@ -48,19 +48,20 @@ int state;      // this global variable for interaction state
 
 // constants for each state (more readable than #define)
 const int kStateStandby = 0;
-const int kStateChipPattern1 = 1;     // dispense
-const int kStateChipPattern2 = 2;     // auto-cycle
-const int kStateWaterPumpOn = 3;
+const int kStateChipPattern1 = 1;     // auto-cycle
+const int kStateChipPattern2 = 2;     // dispense cycle
+const int kStateWaterPumpOn = 3;      // air/water on cycle
 const int kStatePeristalticPumpOn = 4;
 
 //========== STATES for Light Patterns ============
 int lightPatternNum;      // this global variable for interaction state
 
 // constants for each light pattern 
-const int kLightPatternStandby = 1000;
-const int kLightPatternButtonPressed = 1001;
-const int kLightPatternAutoCycle = 1002;
-const int kLightPatternDispense = 1003;
+const int kLightPatternStandby = 1000;    
+const int kLightPatternDispenseCycle = 1001;        // if btn pressed to dispense so chip pattern2
+const int kLightPatternAutoCycle = 1002;          // if btn is not pressed, chip pattern 1
+const int kLightPatternWaterPumpOn = 1003;        
+const int kLightPatternPeristalticPumpOn = 1004;  
 
 
 // global variables for color and brightness for Neopixels
@@ -69,6 +70,9 @@ int g = 255;
 int b = 255;
 int brightness = 128;
 int brightDir = 1;
+
+// tracks whether dispense button was pressed for the WaterPumpOn state
+boolean bDispenseButtonPressed;
 
 void setup() {
   Serial.begin(115200);
@@ -106,7 +110,7 @@ void setup() {
     }
     CircuitPlayground.redLED(HIGH);
 
-    // 10 built-in NeoPixels, set all to blue
+    // 10 built-in NeoPixels, set all to blue 
     for( int i = 0; i < 10; i++ ) {
       CircuitPlayground.setPixelColor(i, 0,0,255);
     }
@@ -120,17 +124,14 @@ void setup() {
 
 //-- track button input and activate the appropriate LED/motor
 void loop() {
-
   //-- Interactive mode for all buttons (for testing)
-  checkPeristalticPump();
-  checkSelfPrimingPump();
-  checkAirPump();
-
-  // check dispense button to see if it was pressed
-  // (code would go here)
+  //checkPeristalticPump();
+  //checkSelfPrimingPump();
+  //checkAirPump();
   
   // check timers to see if the states have changed
   // (code would go here)
+  updateState();
   
   // update light patterns based on the light pattern number
   updateLightPattern();
@@ -150,26 +151,63 @@ void setupTimers() {
 //-- we will activate different light patterns, depending on the state
 //-- we will turn pumps on/off, depending on the state
 void setState(const int newState) {
+  Serial.print("Setting new state = ");
+  
   if( newState == kStateStandby ) {
+     Serial.println("Standby");
      standbyTimer.start();
      lightPatternNum = kLightPatternStandby;
+
+     // turn all pumps off
+     digitalWrite(PERISTALTIC_PUMP, LOW);  
+     digitalWrite(SELF_PRIMING_PUMP, LOW);  
+     digitalWrite(AIR_PUMP, LOW); 
   }
   else if( newState == kStateChipPattern1 ) {
+    Serial.println("Chip Pattern 1");
      chipPattern1Timer.start();
      lightPatternNum = kLightPatternAutoCycle;
   }
   else if( newState == kStateChipPattern2 ) {
+    Serial.println("Chip Pattern 2");
      chipPattern2Timer.start();
-     lightPatternNum = kLightPatternButtonPressed;
+     lightPatternNum = kLightPatternDispenseCycle;
   }
   else if( newState == kStateWaterPumpOn ) {
+    Serial.println("Water Pump On");
      waterPumpOnTimer.start();
+
      //-- keep same light pattern as the chip cycle
+     lightPatternNum = kLightPatternWaterPumpOn;
+
+     // set flag to indicate which state to go to after this state
+     if( state == kStateChipPattern1 )
+      bDispenseButtonPressed = false;
+     else
+      bDispenseButtonPressed = true;
+
+     // turn air and water pump on, peristaltic is off
+     digitalWrite(PERISTALTIC_PUMP, LOW); 
+     digitalWrite(SELF_PRIMING_PUMP, HIGH);  
+     digitalWrite(AIR_PUMP, HIGH); 
   }
   else if( newState == kStatePeristalticPumpOn ) {
+    Serial.println("Peristaltic Pump On");
      peristalticPumpOnTimer.start();
-     lightPatternNum = kLightPatternDispense;
+     lightPatternNum = kLightPatternPeristalticPumpOn;
+
+     // turn air and water pump off, peristaltic is on
+     digitalWrite(PERISTALTIC_PUMP, HIGH); 
+     digitalWrite(SELF_PRIMING_PUMP, LOW);  
+     digitalWrite(AIR_PUMP, LOW); 
   }
+
+  state = newState;  
+}
+
+//-- add debounce code later
+boolean dispenseButtonPressed() {
+  return digitalRead(PERISTALTIC_BUTTON);
 }
 
 //-- check to see if the peristaltic button is being pressed and then turn on that pump
@@ -180,10 +218,10 @@ void checkPeristalticPump() {
   if( pumpOn )
     digitalWrite(PERISTALTIC_PUMP, HIGH); 
   else  
-    digitalWrite(PERISTALTIC_PUMP, LOW);  
+    digitalWrite(AIR_PUMP, LOW);    
 }
 
-//-- check to see if the peristaltic button is being pressed and then turn on that pump
+//-- check to see if the self priming button is being pressed and then turn on that pump
 void checkSelfPrimingPump() {
   // Check for self-priming pump on/off
   // (code will be more precise, later — add debounce)
@@ -205,10 +243,65 @@ void checkAirPump() {
     digitalWrite(AIR_PUMP, LOW);  
 }
 
+//-- look at timers, etc and change the state
+void updateState() {
+  int newState = state;     // save current, new state may change with buttons, etc
+
+  // STANDBY
+  if( state == kStateStandby ) {
+    if( dispenseButtonPressed() )
+      newState = kStateChipPattern2;
+    else if( standbyTimer.isExpired() )
+      newState = kStateChipPattern1; 
+  }
+
+  // CHIP PATTERN 1
+  if( state == kStateChipPattern1 ) {
+    if( chipPattern1Timer.isExpired() )
+      newState = kStateWaterPumpOn;
+  }
+
+  // CHIP PATTERN 2
+  if( state == kStateChipPattern2 ) {
+    if( chipPattern2Timer.isExpired() )
+      newState = kStateWaterPumpOn;
+  }
+
+  // AIR/WATER PUMP ON VIA CHIP PATTERN 1
+ if( state == kStateWaterPumpOn ) {
+    if( waterPumpOnTimer.isExpired() ) {
+      if( bDispenseButtonPressed )
+        newState = kStatePeristalticPumpOn;
+       else
+        newState = kStateStandby;
+    }
+  }
+
+  // PERISTALTIC PUMP ON
+  if( state == kStatePeristalticPumpOn ) {
+    if( peristalticPumpOnTimer.isExpired() )
+      newState = kStateStandby;
+  }
+  
+  // check to see if the state has changed
+  if( newState != state )   
+    setState(newState);
+}
+
+
 //-- looks at the light pattern number and will update the Neopixels on the Circuit Playground board
 void updateLightPattern() {
   if( lightPatternNum == kLightPatternStandby )
-    adjustStandbyLightPattern();
+    adjustLightPatternStandby();
+  else if( lightPatternNum == kLightPatternAutoCycle )
+    adjustLightPatternAutoCycle();
+  else if( lightPatternNum == kLightPatternDispenseCycle )
+    adjustLightPatternDispenseCycle();
+  else if( lightPatternNum == kLightPatternWaterPumpOn )
+    adjustLightPatternWaterPumpOn();
+  else if( lightPatternNum == kLightPatternPeristalticPumpOn )
+    adjustLightPatternPeristalticPumpOn();
+    
  
   // global change using brightness and the r,g, b global variables
   // all NeoPixels will do the same exact thing
@@ -220,9 +313,91 @@ void updateLightPattern() {
   #endif
 }
 
+
 // pulsating blue pattern
-void adjustStandbyLightPattern() {
+void adjustLightPatternStandby() {
   r = 0;
+  g = 0;
+  b = 255;
+  
+  brightness = brightness + brightDir;
+
+  if( brightness < 128 ) {
+    brightness = 128;
+    brightDir = 1;    // start fading up
+  }
+  else if( brightness > 255 ) {
+    brightness = 255;
+    brightDir = -1;   // start fading down
+  } 
+
+  delay(20);
+}
+
+// pulsating green pattern
+void adjustLightPatternAutoCycle() {
+  r = 0;
+  g = 255;
+  b = 0;
+  
+  brightness = brightness + brightDir;
+
+  if( brightness < 128 ) {
+    brightness = 128;
+    brightDir = 1;    // start fading up
+  }
+  else if( brightness > 255 ) {
+    brightness = 255;
+    brightDir = -1;   // start fading down
+  } 
+
+  delay(20);
+}
+
+
+// pulsating red pattern
+void adjustLightPatternDispenseCycle() {
+  r = 255;
+  g = 0;
+  b = 0;
+  
+  brightness = brightness + brightDir;
+
+  if( brightness < 128 ) {
+    brightness = 128;
+    brightDir = 1;    // start fading up
+  }
+  else if( brightness > 255 ) {
+    brightness = 255;
+    brightDir = -1;   // start fading down
+  } 
+
+  delay(20);
+}
+
+// pulsating yellowy pattern
+void adjustLightPatternWaterPumpOn() {
+  r = 255;
+  g = 255;
+  b = 0;
+  
+  brightness = brightness + brightDir;
+
+  if( brightness < 128 ) {
+    brightness = 128;
+    brightDir = 1;    // start fading up
+  }
+  else if( brightness > 255 ) {
+    brightness = 255;
+    brightDir = -1;   // start fading down
+  } 
+
+  delay(20);
+}
+
+// pulsating purple pattern
+void adjustLightPatternPeristalticPumpOn() {
+  r = 255;
   g = 0;
   b = 255;
   
